@@ -9,7 +9,6 @@ class GameEngine {
         // Information on the input
         this.click = null;
         this.mouse = null;
-        this.wheel = null;
         this.keys = {};
         this.row = 32
         this.coloum = 16
@@ -42,6 +41,7 @@ class GameEngine {
         this.currentBlock = null
         this.currentX = 8
         this.currentY = 0
+        this.nextYCount = 0
 
         this.resetCurrentBlock()
 
@@ -96,8 +96,12 @@ class GameEngine {
             this.rightclick = getXandY(e);
         });
 
-        this.ctx.canvas.addEventListener("keydown", event => this.keys[event.code] = true);
-        this.ctx.canvas.addEventListener("keyup", event => this.keys[event.code] = false);
+        this.ctx.canvas.addEventListener("keydown", event => {
+            this.keys[event.code] = true;
+        });
+        this.ctx.canvas.addEventListener("keyup", event => {
+            this.keys[event.code] = false
+        });
     };
 
     draw() {
@@ -118,34 +122,21 @@ class GameEngine {
 
         for (let y = 0; y < this.currentBlock.length; y++) {
             for (let x = 0; x < this.currentBlock[y].length; x++) {
-                if (this.currentBlock[y][x] === 1) this.ctx.fillRect(Math.floor(this.currentX + x) * 22, Math.floor(this.currentY + y) * 22, 20, 20);
+                if (this.currentBlock[y][x] === 1) this.ctx.fillRect((this.currentX + x) * 22, (this.currentY + y) * 22, 20, 20);
             }
         }
 
     };
 
-    checkcollision() {
+    isCurrentBlockCollidingWithAnything() {
         if (this.currentBlock != null) {
             for (let y = 0; y < this.currentBlock.length; y++) {
                 for (let x = 0; x < this.currentBlock[y].length; x++) {
-                    if (this.currentBlock[y][x] === 1 && this.map2d[Math.floor(this.currentY + y)][this.currentX + x] === 1) {
+                    if (this.currentBlock[y][x] === 1 && this.map2d[this.currentY + y][this.currentX + x] === 1) {
                         return true
                     }
                 }
             }
-        }
-        return false
-    }
-
-    checkFallEnded() {
-        if (this.currentY > this.row - 1 || this.checkcollision()) {
-            for (let y = 0; y < this.currentBlock.length; y++) {
-                for (let x = 0; x < this.currentBlock[y].length; x++) {
-                    if (this.currentBlock[y][x] === 1) this.map2d[Math.floor(this.currentY + y) - 1][this.currentX + x] = 1
-                }
-            }
-            this.resetCurrentBlock()
-            return true
         }
         return false
     }
@@ -155,24 +146,62 @@ class GameEngine {
         this.currentY = 0
     }
 
-    update() {
-
-        if (this.keys["ArrowDown"] || this.keys["KeyS"]) {
-            for (let y = Math.floor(this.currentY); y < this.row; y++) {
-                if (this.checkFallEnded()) {
-                    break;
-                }
-                this.currentY += 1
+    finishUp() {
+        for (let y = 0; y < this.currentBlock.length; y++) {
+            for (let x = 0; x < this.currentBlock[y].length; x++) {
+                if (this.currentBlock[y][x] === 1) this.map2d[this.currentY + y][this.currentX + x] = 1
             }
+        }
+        this.resetCurrentBlock()
+    }
+
+    tryMoveHorizontally(value) {
+        const nextX = this.currentX + value
+        if (nextX < 0 || nextX + this.currentBlock[0].length > this.coloum) {
+            return false;
+        } else {
+            this.currentX = nextX
+            if (this.isCurrentBlockCollidingWithAnything()) {
+                this.currentX -= value
+                return false;
+            }
+            return true;
+        }
+    }
+
+    tryMoveDown() {
+        const nextY = this.currentY + 1
+        if (this.row + 1 <= nextY + this.currentBlock.length) {
+            return false;
+        } else {
+            this.currentY = nextY
+            if (this.isCurrentBlockCollidingWithAnything()) {
+                this.currentY -= 1
+                return false;
+            }
+            return true;
+        }
+    }
+
+    update() {
+        if (this.keys["ArrowDown"] || this.keys["KeyS"]) {
+            while (this.tryMoveDown()) {}// try to move all the way down
+            this.finishUp()
+        } else if (this.keys["ArrowUp"] || this.keys["KeyW"]) {
+            this.currentBlock = this.currentBlock[0].map((_, colIndex) => this.currentBlock.map(row => row[colIndex]));
         } else {
             if (this.keys["ArrowLeft"] || this.keys["KeyA"]) {
-                this.currentX -= 1
+                this.tryMoveHorizontally(-1)
             } else if (this.keys["ArrowRight"] || this.keys["KeyD"]) {
-                this.currentX += 1
+                this.tryMoveHorizontally(1)
             }
-            this.currentY += 0.1
-            this.currentX = Math.min(Math.max(this.currentX, 0), this.coloum - this.currentBlock[0].length)
-            this.checkFallEnded()
+            this.nextYCount += this.clockTick * 1
+            if (this.nextYCount >= 1) {
+                if (!this.tryMoveDown()) {
+                    this.finishUp()
+                }
+                this.nextYCount = 0
+            }
         }
     };
 
@@ -182,6 +211,6 @@ class GameEngine {
         this.draw();
     };
 
-};
+}
 
 // KV Le was here :)

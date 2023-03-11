@@ -53,5 +53,14 @@ class AssetManager {
         return this.musicCache[path];
     };
 
+    playMusic(path) {
+        const musicPtr = this.getMusicByPath(path)
+        if (document.getElementById("mute").checked) {
+            musicPtr.volume = 0
+        } else {
+            musicPtr.volume = document.getElementById("volume").value
+        }
+        musicPtr.play()
+    }
 }
 

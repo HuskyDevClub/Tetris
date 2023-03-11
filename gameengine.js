@@ -28,6 +28,8 @@ class GameEngine {
         this.currentBlock = null
         this.nextBlock = Blocks.new();
         this.nextYFrameCounter = 0
+        this.nextXFrameCounter = 0
+        this.nextBlockFrameCounter = false
     };
 
     start() {
@@ -110,7 +112,7 @@ class GameEngine {
             //title
             this.drawText("Tetris", fontSize * 2, Math.floor((this.ctx.canvas.width - this.measureText("Start", fontSize * 2)) / 2), fontSize * 5, "black")
             // start button
-            const paddingT = this.blockPixelWidth / 2
+            const paddingT = Math.ceil(this.blockPixelWidth / 2)
             let _rect = [0, 0, this.measureText("Start", fontSize) + paddingT * 2, fontSize + paddingT]
             _rect[0] = Math.floor((this.ctx.canvas.width - _rect[2]) / 2)
             _rect[1] = Math.floor((this.ctx.canvas.height - _rect[3]) / 2)
@@ -119,7 +121,6 @@ class GameEngine {
                 buttonColor = "red"
                 if (GameEngine.mouse.leftClick) {
                     this.resetCurrentBlock()
-                    ASSET_MANAGER.getMusicByPath("./music.mp3").play()
                 }
             } else {
                 buttonColor = "black"
@@ -128,6 +129,7 @@ class GameEngine {
             this.ctx.strokeRect(_rect[0], _rect[1], _rect[2], _rect[3]);
             this.drawText("Start", fontSize, _rect[0] + paddingT, _rect[1] + fontSize, "white", buttonColor)
         } else {
+            if (!this.gameOver) ASSET_MANAGER.playMusic("./music.mp3")
             for (let y = 0; y < this.map2d.length; y++) {
                 for (let x = 0; x < this.map2d[y].length; x++) {
                     if (this.map2d[y][x] === 0) {
@@ -137,8 +139,7 @@ class GameEngine {
                         } else {
                             this.ctx.strokeStyle = "black"
                         }
-                        this.ctx.rect(x * (this.blockPixelWidth + this.paddingX), y * (this.blockPixelHeight + this.paddingY), this.blockPixelWidth, this.blockPixelHeight);
-                        this.ctx.stroke();
+                        this.ctx.strokeRect(x * (this.blockPixelWidth + this.paddingX), y * (this.blockPixelHeight + this.paddingY), this.blockPixelWidth, this.blockPixelHeight);
                     } else {
                         this.ctx.fillStyle = "black"
                         this.ctx.fillRect(x * (this.blockPixelWidth + this.paddingX), y * (this.blockPixelHeight + this.paddingY), this.blockPixelWidth, this.blockPixelHeight);
@@ -182,7 +183,6 @@ class GameEngine {
                     if (GameEngine.mouse.leftClick) {
                         this.init(this.ctx)
                         this.resetCurrentBlock()
-                        ASSET_MANAGER.getMusicByPath("./music.mp3").play()
                     }
                 } else {
                     buttonColor = "black"
@@ -283,13 +283,7 @@ class GameEngine {
 
     update() {
         if (this.currentBlock != null && !this.gameOver) {
-            if (this.keysHaveUp["ArrowDown"] || this.keysHaveUp["KeyS"]) {
-                while (this.tryMoveDown()) {
-                }// try to move all the way down
-                this.finishUp()
-                this.keysHaveUp["ArrowDown"] = false;
-                this.keysHaveUp["KeyS"] = false;
-            } else if (this.keysHaveUp["ArrowUp"] || this.keysHaveUp["KeyW"]) {
+            if (this.keysHaveUp["ArrowUp"] || this.keysHaveUp["KeyW"]) {
                 this.currentBlock.rotate()
                 if (this.currentBlock.getRight() > this.coloum) {
                     this.currentBlock.setRight(this.coloum)
@@ -297,21 +291,32 @@ class GameEngine {
                 this.keysHaveUp["ArrowUp"] = false;
                 this.keysHaveUp["KeyW"] = false;
             } else {
-                if (this.keysHaveUp["ArrowLeft"] || this.keysHaveUp["KeyA"]) {
-                    this.tryMoveHorizontally(-1)
-                    this.keysHaveUp["ArrowLeft"] = false;
-                    this.keysHaveUp["KeyA"] = false;
-                } else if (this.keysHaveUp["ArrowRight"] || this.keysHaveUp["KeyD"]) {
-                    this.tryMoveHorizontally(1)
-                    this.keysHaveUp["ArrowRight"] = false;
-                    this.keysHaveUp["KeyD"] = false;
+                if (this.keys["ArrowLeft"] || this.keys["KeyA"]) {
+                    this.nextXFrameCounter -= this.clockTick * 15
+                    if (this.nextXFrameCounter < -1) {
+                        this.tryMoveHorizontally(-1)
+                        this.nextXFrameCounter = 0
+                    }
+                } else if (this.keys["ArrowRight"] || this.keys["KeyD"]) {
+                    this.nextXFrameCounter += this.clockTick * 15
+                    if (this.nextXFrameCounter > 1) {
+                        this.tryMoveHorizontally(1)
+                        this.nextXFrameCounter = 0
+                    }
                 }
-                this.nextYFrameCounter += this.clockTick * 5
+                this.nextYFrameCounter += this.clockTick * (this.keys["ArrowDown"] || this.keys["KeyS"] ? 20 : 5)
                 if (this.nextYFrameCounter >= 1) {
                     if (!this.tryMoveDown()) {
-                        this.finishUp()
+                        if (this.nextBlockFrameCounter) {
+                            this.finishUp()
+                            this.nextBlockFrameCounter = false
+                            this.nextYFrameCounter = 0
+                        } else {
+                            this.nextBlockFrameCounter = true
+                        }
+                    } else {
+                        this.nextYFrameCounter = 0
                     }
-                    this.nextYFrameCounter = 0
                 }
             }
         }
